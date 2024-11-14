@@ -1,52 +1,108 @@
-const Shark = require('./models/Shark'); // Import your Mongoose models
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const Shark = require('./models/Shark');
 const User = require('./models/User');
+const { AuthenticationError } = require('apollo-server-express');
+
+// Replace 'your-secret-key' with your strong JWT secret key
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 const resolvers = {
-    Query: {
-        sharks: async () => {
-            try {
-                return await Shark.find();
-            } catch (error) {
-                throw new Error("Failed to fetch sharks:", error);
-            }
-        },
-        user: async (parent, args) => {
-            try {
-                return await User.findById(args.id);
-            } catch (error) {
-                throw new Error("Failed to fetch user:", error);
-            }
-        }
+  Query: {
+    sharks: async () => {
+      try {
+        return await Shark.find();
+      } catch (error) {
+        throw new Error('Failed to fetch sharks');
+      }
     },
-    Mutation: {
-        addShark: async (parent, args) => {
-            try {
-                const newShark = new Shark(args);
-                return await newShark.save();
-            } catch (error) {
-                throw new Error("Failed to add shark:", error);
-            }
-        },
-        addUser: async (parent, args) => {
-            try {
-                const newUser = new User(args);
-                return await newUser.save();
-            } catch (error) {
-                throw new Error("Failed to add user:", error);
-            }
-        },
-        addFavorite: async (parent, args) => {
-            try {
-                const user = await User.findById(args.userId);
-                if (!user) throw new Error("User not found");
-                user.favorites.push(args.location);
-                await user.save();
-                return user;
-            } catch (error) {
-                throw new Error("Failed to add favorite location:", error);
-            }
+    shark: async (parent, { id }) => {
+      try {
+        return await Shark.findById(id);
+      } catch (error) {
+        throw new Error('Failed to fetch shark');
+      }
+    },
+    currentUser: async (parent, args, context) => {
+      if (!context.user) {
+        throw new AuthenticationError("Not authenticated");
+      }
+      return await User.findById(context.user.id);
+    },
+  },
+
+  Mutation: {
+    signup: async (parent, { username, password }) => {
+      try {
+        // Check if the username already exists
+        const existingUser = await User.findOne({ username });
+        if (existingUser) {
+          console.error("Username already taken");
+          throw new Error('Username already taken');
         }
+    
+        // Hash the password
+        const hashedPassword = await bcrypt.hash(password, 10);
+    
+        // Create the new user
+        const user = new User({ username, password: hashedPassword });
+        await user.save();
+    
+        // Generate the JWT token
+        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+    
+        return { token, user };
+      } catch (error) {
+        console.error("Error in signup:", error);
+        throw new Error('Failed to sign up');
+      }
+    },
+
+    login: async (parent, { username, password }) => {
+      try {
+        const user = await User.findOne({ username });
+        if (!user) throw new Error('User not found');
+
+        const isValid = await bcrypt.compare(password, user.password);
+        if (!isValid) throw new AuthenticationError('Invalid password');
+
+        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+
+        return { token, user };
+      } catch (error) {
+        throw new Error('Failed to log in');
+      }
+    },
+
+    // Add Shark Mutation
+    addShark: async (parent, { name, species, pingCount, location, timestamp }, context) => {
+      if (!context.user) {
+        throw new AuthenticationError('Not authenticated');
+      }
+      try {
+        const newShark = await Shark.create({ name, species, pingCount, location, timestamp });
+        return newShark;
+      } catch (error) {
+        throw new Error('Failed to add shark');
+      }
+    },
+
+    // Delete Shark Mutation
+    deleteShark: async (parent, { id }, context) => {
+      if (!context.user) {
+        throw new AuthenticationError('Not authenticated');
+      }
+      try {
+        const deletedShark = await Shark.findByIdAndDelete(id);
+        if (!deletedShark) {
+          throw new Error('Shark not found');
+        }
+        return deletedShark;
+      } catch (error) {
+        throw new Error('Failed to delete shark');
+      }
     }
+  },
 };
 
 module.exports = resolvers;
