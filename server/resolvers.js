@@ -3,9 +3,10 @@ const jwt = require('jsonwebtoken');
 const Shark = require('./models/Shark');
 const User = require('./models/User');
 const { AuthenticationError } = require('apollo-server-express');
+const { signToken } = require("./utils/auth")
 
 // Replace 'your-secret-key' with your strong JWT secret key
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-strong-random-string';
 
 const resolvers = {
   Query: {
@@ -27,7 +28,7 @@ const resolvers = {
       if (!context.user) {
         throw new AuthenticationError("Not authenticated");
       }
-      return await User.findById(context.user.id);
+      return await User.findById(context.user._id);
     },
   },
 
@@ -49,7 +50,7 @@ const resolvers = {
         await user.save();
     
         // Generate the JWT token
-        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
+        const token = signToken({ _id: user._id, username: user.username });
     
         return { token, user };
       } catch (error) {
@@ -60,16 +61,24 @@ const resolvers = {
 
     login: async (parent, { username, password }) => {
       try {
+        // Find the user by username
         const user = await User.findOne({ username });
-        if (!user) throw new Error('User not found');
-
+        if (!user) {
+          throw new Error('User not found');
+        }
+    
+        // Compare the password with the hashed password in the database
         const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) throw new AuthenticationError('Invalid password');
-
+        if (!isValid) {
+          throw new AuthenticationError('Invalid password');
+        }
+    
+        // Generate the JWT token
         const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
-
+    
         return { token, user };
       } catch (error) {
+        console.error("Login error:", error); // Debugging output
         throw new Error('Failed to log in');
       }
     },
