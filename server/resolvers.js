@@ -97,18 +97,16 @@ const resolvers = {
     },
 
     // Delete Shark Mutation
-    deleteShark: async (parent, { id }, context) => {
-      if (!context.user) {
-        throw new AuthenticationError('Not authenticated');
-      }
+    deleteShark: async (parent, { id }) => {
       try {
-        const deletedShark = await Shark.findByIdAndDelete(id);
-        if (!deletedShark) {
-          throw new Error('Shark not found');
+        const shark = await Shark.findByIdAndDelete(id);
+        if (!shark) {
+          throw new Error("Shark not found");
         }
-        return deletedShark;
+        return "Shark successfully deleted";
       } catch (error) {
-        throw new Error('Failed to delete shark');
+        console.error("Delete Error:", error);
+        throw new Error("Failed to delete shark");
       }
     }
   },
