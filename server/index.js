@@ -1,68 +1,63 @@
 const express = require('express');
-const { ApolloServer } = require('@apollo/server');
-const { expressMiddleware } = require('@apollo/server/express4');
-const cors = require('cors');
+const { ApolloServer } = require('apollo-server-express');
 const path = require('path');
 const db = require('./config/connection');
-const typeDefs = require('./schema');
-const resolvers = require('./resolvers');
-const { authMiddleware } = require('./utils/auth'); // Import authMiddleware
+const { typeDefs, resolvers } = require('./schemas');
+require('dotenv').config(); // Ensure environment variables are loaded
 
-// Environment variables and port
 const PORT = process.env.PORT || 3001;
-
-// Initialize Express app
 const app = express();
 
-// Middleware for JSON and URL-encoded data
-app.use(express.json());
+// Middleware for parsing request body
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
-// Create Apollo Server instance
+// Optional: Enable CORS
+const cors = require('cors');
+app.use(cors());
+
+// Set up Apollo Server
 const server = new ApolloServer({
   typeDefs,
   resolvers,
-  introspection: true, // Enable introspection for development
+  context: ({ req }) => {
+    // Pass headers for authentication if needed
+    const token = req.headers.authorization || '';
+    return { token };
+  },
 });
 
-// Function to start Apollo Server
-const startApolloServer = async () => {
+// Start the Apollo Server and apply middleware to Express
+async function startApolloServer() {
   try {
-    // Start Apollo Server
     await server.start();
+    server.applyMiddleware({ app });
 
-    // Apply Apollo middleware with custom context
-    app.use(
-      '/graphql',
-      cors(), // Enable CORS
-      expressMiddleware(server, {
-        context: async ({ req }) => {
-          // Apply authMiddleware to attach the user to the context
-          const context = await authMiddleware({ req });
-          return context;
-        },
-      })
-    );
-
-    // Serve static assets in production
+    // Serve static files in production
     if (process.env.NODE_ENV === 'production') {
       app.use(express.static(path.join(__dirname, '../client/build')));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, '../client/build/index.html'));
-      });
     }
 
-    // Connect to the database and start the server
+    // Catch-all route for React front-end
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, '../client/build/index.html'));
+    });
+
+    // Connect to MongoDB and start the Express server
     db.once('open', () => {
       app.listen(PORT, () => {
-        console.log(`API server running on port ${PORT}!`);
-        console.log(`GraphQL available at http://localhost:${PORT}/graphql`);
+        console.log(`🌍 API server running on port ${PORT}!`);
+        console.log(`🚀 GraphQL available at http://localhost:${PORT}${server.graphqlPath}`);
       });
     });
+
+    db.on('error', (err) => {
+      console.error('❌ MongoDB connection error:', err);
+    });
   } catch (err) {
-    console.error('Failed to start Apollo Server:', err.message);
+    console.error('❌ Failed to start server:', err);
   }
-};
+}
 
 // Start the server
 startApolloServer();
