@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node server/index.js",
-    "develop": "concurrently \"npm:start\" \"cd client && npm start\""
+    "develop": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server/index.js",
+    "client": "npm start --prefix client"
   },
   "dependencies": {
     "apollo-server-express": "^3.13.0",
@@ -13,6 +15,6 @@
     "mongoose": "^8.8.1"
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^8.2.2"
   }
 }
