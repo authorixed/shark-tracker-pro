@@ -1,114 +1,115 @@
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const Shark = require('./models/Shark');
-const User = require('./models/User');
 const { AuthenticationError } = require('apollo-server-express');
-const { signToken } = require("./utils/auth")
-
-// Replace 'your-secret-key' with your strong JWT secret key
-const JWT_SECRET = process.env.JWT_SECRET || 'your-strong-random-string';
+const User = require('./models/User');
+const Shark = require('./models/Shark');
+const { signToken } = require('./utils/auth');
 
 const resolvers = {
   Query: {
     sharks: async () => {
       try {
         return await Shark.find();
-      } catch (error) {
+      } catch (err) {
+        console.error('Error fetching sharks:', err.message);
         throw new Error('Failed to fetch sharks');
       }
     },
     shark: async (parent, { id }) => {
       try {
         return await Shark.findById(id);
-      } catch (error) {
-        throw new Error('Failed to fetch shark');
+      } catch (err) {
+        console.error('Error fetching shark:', err.message);
+        throw new Error('Failed to fetch the shark');
       }
     },
     currentUser: async (parent, args, context) => {
       if (!context.user) {
-        throw new AuthenticationError("Not authenticated");
+        throw new AuthenticationError('Not authenticated');
       }
-      return await User.findById(context.user._id);
+      try {
+        return await User.findById(context.user._id);
+      } catch (err) {
+        console.error('Error fetching current user:', err.message);
+        throw new Error('Failed to fetch current user');
+      }
     },
   },
 
   Mutation: {
     signup: async (parent, { username, password }) => {
       try {
-        // Check if the username already exists
         const existingUser = await User.findOne({ username });
         if (existingUser) {
-          console.error("Username already taken");
           throw new Error('Username already taken');
         }
-    
-        // Hash the password
+
         const hashedPassword = await bcrypt.hash(password, 10);
-    
-        // Create the new user
-        const user = new User({ username, password: hashedPassword });
-        await user.save();
-    
-        // Generate the JWT token
-        const token = signToken({ _id: user._id, username: user.username });
-    
+        const user = await User.create({ username, password: hashedPassword });
+
+        const token = signToken(user);
         return { token, user };
-      } catch (error) {
-        console.error("Error in signup:", error);
-        throw new Error('Failed to sign up');
+      } catch (err) {
+        console.error('Error signing up user:', err.message);
+        throw new Error('Failed to sign up user');
       }
     },
-
     login: async (parent, { username, password }) => {
       try {
-        // Find the user by username
         const user = await User.findOne({ username });
         if (!user) {
-          throw new Error('User not found');
+          throw new AuthenticationError('User not found');
         }
-    
-        // Compare the password with the hashed password in the database
-        const isValid = await bcrypt.compare(password, user.password);
-        if (!isValid) {
-          throw new AuthenticationError('Invalid password');
+
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+          throw new AuthenticationError('Invalid credentials');
         }
-    
-        // Generate the JWT token
-        const token = jwt.sign({ id: user._id, username: user.username }, JWT_SECRET, { expiresIn: '1h' });
-    
+
+        const token = signToken(user);
         return { token, user };
-      } catch (error) {
-        console.error("Login error:", error); // Debugging output
-        throw new Error('Failed to log in');
+      } catch (err) {
+        console.error('Error logging in user:', err.message);
+        throw new Error('Failed to log in user');
       }
     },
-
-    // Add Shark Mutation
     addShark: async (parent, { name, species, pingCount, location, timestamp }, context) => {
       if (!context.user) {
         throw new AuthenticationError('Not authenticated');
       }
+
       try {
-        const newShark = await Shark.create({ name, species, pingCount, location, timestamp });
+        const newShark = await Shark.create({
+          name,
+          species,
+          pingCount,
+          location,
+          timestamp,
+          createdBy: context.user._id, // Associate with the authenticated user
+        });
+
         return newShark;
-      } catch (error) {
+      } catch (err) {
+        console.error('Error adding shark:', err.message);
         throw new Error('Failed to add shark');
       }
     },
+    deleteShark: async (parent, { id }, context) => {
+      if (!context.user) {
+        throw new AuthenticationError('Not authenticated');
+      }
 
-    // Delete Shark Mutation
-    deleteShark: async (parent, { id }) => {
       try {
         const shark = await Shark.findByIdAndDelete(id);
         if (!shark) {
-          throw new Error("Shark not found");
+          throw new Error('Shark not found');
         }
+
         return "Shark successfully deleted";
-      } catch (error) {
-        console.error("Delete Error:", error);
-        throw new Error("Failed to delete shark");
+      } catch (err) {
+        console.error('Error deleting shark:', err.message);
+        throw new Error('Failed to delete shark');
       }
-    }
+    },
   },
 };
 
