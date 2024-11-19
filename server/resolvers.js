@@ -23,14 +23,26 @@ const resolvers = {
       }
     },
     currentUser: async (parent, args, context) => {
-      if (!context.user) {
-        throw new AuthenticationError('Not authenticated');
+      if (!context.user || !context.user._id) {
+        console.error('Authentication failed: No user found in context.');
+        throw new AuthenticationError('Not authenticated. Please log in again.');
       }
+    
       try {
-        return await User.findById(context.user._id);
+        // Log the user context for debugging
+        console.log('Fetching current user with context:', context.user);
+    
+        const user = await User.findById(context.user._id);
+    
+        if (!user) {
+          console.error(`No user found with ID: ${context.user._id}`);
+          throw new Error('User not found');
+        }
+    
+        return user;
       } catch (err) {
         console.error('Error fetching current user:', err.message);
-        throw new Error('Failed to fetch current user');
+        throw new Error('Failed to fetch current user. Please try again later.');
       }
     },
   },

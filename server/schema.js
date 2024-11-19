@@ -30,7 +30,13 @@ const typeDefs = gql`
   type Mutation {
     signup(username: String!, password: String!): AuthPayload
     login(username: String!, password: String!): AuthPayload
-    addShark(name: String!, species: String!, pingCount: Int!, location: String!, timestamp: String!): Shark
+    addShark(
+      name: String!
+      species: String!
+      pingCount: Int!
+      location: String!
+      timestamp: String!
+    ): Shark
     deleteShark(id: ID!): String
   }
 `;
