@@ -27,18 +27,14 @@ const resolvers = {
         console.error('Authentication failed: No user found in context.');
         throw new AuthenticationError('Not authenticated. Please log in again.');
       }
-    
+
       try {
-        // Log the user context for debugging
-        console.log('Fetching current user with context:', context.user);
-    
         const user = await User.findById(context.user._id);
-    
         if (!user) {
           console.error(`No user found with ID: ${context.user._id}`);
           throw new Error('User not found');
         }
-    
+
         return user;
       } catch (err) {
         console.error('Error fetching current user:', err.message);
@@ -107,21 +103,20 @@ const resolvers = {
     },
     deleteShark: async (parent, { id }, context) => {
       if (!context.user) {
-        throw new AuthenticationError('Not authenticated');
+          throw new AuthenticationError('Not authenticated');
       }
-
+  
       try {
-        const shark = await Shark.findByIdAndDelete(id);
-        if (!shark) {
-          throw new Error('Shark not found');
-        }
-
-        return "Shark successfully deleted";
+          const shark = await Shark.findByIdAndDelete(id);
+          if (!shark) {
+              throw new Error('Shark not found');
+          }
+          return "Shark successfully deleted"; // Return a string.
       } catch (err) {
-        console.error('Error deleting shark:', err.message);
-        throw new Error('Failed to delete shark');
+          console.error('Error deleting shark:', err.message);
+          throw new Error('Failed to delete shark');
       }
-    },
+  },
   },
 };
 

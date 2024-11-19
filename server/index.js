@@ -10,6 +10,7 @@ require('dotenv').config();
 const PORT = process.env.PORT || 3001;
 const app = express();
 
+// Middleware to parse incoming requests
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -18,15 +19,18 @@ const cors = require('cors');
 app.use(cors());
 
 // Apollo Server setup
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  context: authMiddleware, // Correctly pass the authMiddleware
-});
-
 async function startApolloServer() {
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    context: authMiddleware, // Pass the auth middleware for JWT validation
+  });
+
   try {
+    // Start the Apollo server
     await server.start();
+
+    // Apply Apollo middleware to the Express app
     server.applyMiddleware({ app });
 
     // Serve static files if in production
@@ -37,15 +41,21 @@ async function startApolloServer() {
       });
     }
 
+    // Connect to the database and start the server
     db.once('open', () => {
       app.listen(PORT, () => {
-        console.log(`🌍 API server running on port ${PORT}!`);
+        console.log(`🌍 API server running on http://localhost:${PORT}`);
         console.log(`🚀 GraphQL available at http://localhost:${PORT}${server.graphqlPath}`);
       });
+    });
+
+    db.on('error', (err) => {
+      console.error('Database connection error:', err.message);
     });
   } catch (err) {
     console.error('Error starting Apollo Server:', err.message);
   }
 }
 
+// Start the server
 startApolloServer();
